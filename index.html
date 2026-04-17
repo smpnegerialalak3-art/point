@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    .loader { border-top-color: #1e3a8a; animation: spinner 1.5s linear infinite; }
+    @keyframes spinner { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+    .tab-active { border-bottom: 2px solid #2563eb; color: #2563eb; }
+    .kelas-card:hover { transform: translateY(-2px); transition: all 0.2s; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+
+  <!-- GANTI URL INI DENGAN URL APPS SCRIPT ANDA -->
+  <script>
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyCHW59WEnQbzXO3SIzRnL78nKkCqjd8iKeh5P5CZduJK_vzZ-YlAyoisJ0vT5ftSPlZQ/exec";
+  </script>
+
+  <div id="loadingOverlay" class="fixed inset-0 bg-white/80 z-[100] flex items-center justify-center hidden">
+    <div class="flex flex-col items-center">
+      <div class="loader w-12 h-12 border-4 border-slate-200 rounded-full mb-2"></div>
+      <p class="text-xs font-bold text-slate-500 animate-pulse">Menghubungkan ke Database...</p>
+    </div>
+  </div>
+
+  <!-- LOGIN -->
+  <div id="loginPage" class="flex items-center justify-center min-h-screen p-4">
+    <div class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md border border-slate-100 text-center">
+      <h1 class="text-3xl font-bold text-slate-900 tracking-tight italic mb-6">E-POINT</h1>
+      <div class="space-y-4 text-left">
+        <input type="text" id="username" class="w-full px-4 py-3 rounded-xl border outline-none focus:ring-2 focus:ring-blue-600" placeholder="Username">
+        <input type="password" id="password" class="w-full px-4 py-3 rounded-xl border outline-none focus:ring-2 focus:ring-blue-600" placeholder="Password">
+        <button onclick="handleLogin()" class="w-full bg-slate-900 text-white py-3 rounded-xl font-bold hover:bg-slate-800 shadow-lg">Masuk</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- APP -->
+  <div id="mainApp" class="hidden">
+    <nav class="bg-slate-900 text-white py-4 px-6 sticky top-0 z-30 shadow-md">
+      <div class="container mx-auto flex justify-between items-center">
+        <div class="flex items-center space-x-2 font-bold text-lg italic">E-POINT</div>
+        <div class="flex items-center space-x-4">
+          <span id="navInfo" class="text-xs text-slate-400"></span>
+          <button onclick="saveDataToCloud()" class="bg-emerald-600 px-3 py-1 rounded text-[10px] font-bold uppercase">Simpan Awan</button>
+          <button onclick="location.reload()" class="p-2 hover:bg-slate-800 rounded-lg text-red-400 font-bold text-xs uppercase">Keluar</button>
+        </div>
+      </div>
+    </nav>
+
+    <div class="container mx-auto p-4 md:p-6 space-y-6">
+      <div class="flex justify-between items-center">
+        <h2 class="text-2xl font-bold">Dashboard</h2>
+        <div id="adminBadge" class="hidden bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-bold uppercase cursor-pointer" onclick="toggleAdminModal()">Menu Admin</div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="md:col-span-2 bg-white p-6 rounded-2xl border shadow-sm overflow-x-auto">
+          <div class="flex justify-between items-center mb-4">
+            <h3 class="font-bold">Peringkat Poin Siswa</h3>
+            <button onclick="toggleInputModal()" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold">+ Input Poin</button>
+          </div>
+          <table class="w-full text-sm">
+            <thead><tr class="text-left text-slate-400 border-b"><th class="pb-2">Siswa</th><th class="pb-2">Kelas</th><th class="pb-2 text-center">Poin</th></tr></thead>
+            <tbody id="siswaTableBody" class="divide-y"></tbody>
+          </table>
+        </div>
+        <div class="bg-slate-900 text-white p-6 rounded-2xl shadow-xl h-fit">
+          <h3 class="font-bold mb-4 text-xs uppercase tracking-widest text-slate-400">Log Aktivitas</h3>
+          <div id="recentLogs" class="space-y-4 max-h-96 overflow-y-auto pr-2 custom-scrollbar"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODALS (Sama seperti versi sebelumnya, hanya disingkat di sini demi efisiensi) -->
+  <!-- ADMIN MODAL -->
+  <div id="adminModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm hidden">
+    <div class="bg-white w-full max-w-5xl rounded-3xl overflow-hidden shadow-2xl flex flex-col h-[85vh]">
+      <div class="p-6 border-b flex justify-between items-center bg-slate-50">
+        <h3 class="font-bold text-xl uppercase italic">Panel Admin</h3>
+        <button onclick="toggleAdminModal()" class="text-2xl">&times;</button>
+      </div>
+      <div class="flex px-6 border-b bg-slate-50 overflow-x-auto">
+        <button onclick="switchAdminTab('kriteria')" id="tabKriteria" class="py-3 px-4 text-sm font-bold tab-active">Master Poin</button>
+        <button onclick="switchAdminTab('data')" id="tabData" class="py-3 px-4 text-sm font-bold text-slate-400">Manajemen Data</button>
+        <button onclick="switchAdminTab('logs')" id="tabLogs" class="py-3 px-4 text-sm font-bold text-slate-400">Moderasi Log</button>
+      </div>
+      <div class="p-6 overflow-y-auto flex-1">
+        <div id="sectionKriteria">
+          <div class="bg-blue-50 p-4 rounded-xl border border-blue-100 mb-6">
+            <h4 class="text-xs font-bold mb-3 uppercase">Tambah Kriteria</h4>
+            <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+              <input type="text" id="adminNamaKegiatan" class="sm:col-span-2 p-2 border rounded-lg text-sm" placeholder="Nama Kegiatan">
+              <input type="number" id="adminPoin" class="p-2 border rounded-lg text-sm" placeholder="Poin">
+              <select id="adminTipe" class="p-2 border rounded-lg text-sm">
+                <option value="Negatif">Negatif</option>
+                <option value="Positif">Positif</option>
+              </select>
+              <button onclick="saveMasterPoin()" class="sm:col-span-4 bg-blue-600 text-white font-bold py-2 rounded-lg">Simpan Kriteria</button>
+            </div>
+          </div>
+          <table class="w-full text-left text-sm"><tbody id="masterPoinTable" class="divide-y"></tbody></table>
+        </div>
+        <div id="sectionData" class="hidden space-y-6">
+            <div class="flex justify-between items-end">
+                <h4 class="font-bold text-lg">Kelola Master Data</h4>
+                <div class="flex gap-2">
+                  <input type="text" id="newKelasInput" class="border p-2 rounded-lg text-sm uppercase w-32" placeholder="Cth: 7A">
+                  <button onclick="addKelas()" class="bg-slate-900 text-white px-4 py-2 rounded-lg font-bold text-xs uppercase">+ Kelas</button>
+                </div>
+            </div>
+            <div id="gridKelas" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4"></div>
+            <div id="panelDetailKelas" class="hidden border-2 border-dashed border-blue-200 rounded-3xl p-6 bg-slate-50/50 space-y-6">
+                <div class="flex justify-between items-center">
+                    <h4 class="text-xl font-bold text-blue-900" id="detailKelasTitle">Kelas</h4>
+                    <button onclick="closeDetailKelas()" class="text-slate-400 hover:text-red-500 font-bold">Tutup &times;</button>
+                </div>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border">
+                        <h5 class="font-bold text-sm mb-4 uppercase text-slate-500">Wali Kelas</h5>
+                        <div id="waliDisplayArea" class="mb-4"></div>
+                        <div class="space-y-3 p-3 bg-slate-50 rounded-xl">
+                          <input type="text" id="waliNama" class="w-full p-2 border rounded-lg text-xs" placeholder="Nama">
+                          <input type="text" id="waliUser" class="w-full p-2 border rounded-lg text-xs" placeholder="User">
+                          <input type="password" id="waliPass" class="w-full p-2 border rounded-lg text-xs" placeholder="Pass">
+                          <button onclick="saveWaliKelas()" class="w-full bg-blue-600 text-white py-2 rounded-lg text-xs font-bold">Simpan</button>
+                        </div>
+                    </div>
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border">
+                        <h5 class="font-bold text-sm mb-4 uppercase text-slate-500">Daftar Murid</h5>
+                        <textarea id="csvMuridImport" class="w-full p-2 border rounded-lg text-[10px] h-16 mb-2" placeholder="Nama, NISN"></textarea>
+                        <button onclick="importMuridKeKelas()" class="w-full bg-emerald-600 text-white py-2 rounded-lg text-xs font-bold mb-4">Import Murid</button>
+                        <div class="max-h-60 overflow-y-auto custom-scrollbar">
+                          <table class="w-full text-xs text-left"><tbody id="muridKelasTable" class="divide-y"></tbody></table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="sectionLogs" class="hidden">
+           <table class="w-full text-left text-sm border">
+             <tbody id="moderasiLogsTable" class="divide-y"></tbody>
+           </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="inputModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm hidden">
+    <div class="bg-white w-full max-w-lg rounded-3xl p-6 space-y-4">
+      <h3 class="font-bold text-xl">Input Poin Baru</h3>
+      <select id="selSiswa" class="w-full p-3 border rounded-xl bg-white"></select>
+      <select id="selKriteria" class="w-full p-3 border rounded-xl bg-white"></select>
+      <button onclick="submitPoin()" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold">Simpan</button>
+      <button onclick="toggleInputModal()" class="w-full text-slate-400">Batal</button>
+    </div>
+  </div>
+
+  <script>
+    let STATE = {
+      users: [],
+      kelas: [],
+      siswa: [],
+      kriteria: [
+        {id: "k1", nama: "Juara Kelas", poin: 50, tipe: "Positif"},
+        {id: "k2", nama: "Terlambat", poin: -10, tipe: "Negatif"}
+      ],
+      logs: []
+    };
+
+    let currentUser = null;
+    let selectedKelas = null;
+
+    window.onload = async () => {
+        if (SCRIPT_URL === "URL_APPS_SCRIPT_ANDA_DISINI") {
+            alert("Harap masukkan URL Apps Script di dalam kode!");
+        } else {
+            await loadDataFromCloud();
+        }
+    };
+
+    async function loadDataFromCloud() {
+      showLoading(true);
+      try {
+        const response = await fetch(`${SCRIPT_URL}?action=getData`);
+        const data = await response.json();
+        STATE.users = data.users || [];
+        STATE.kelas = data.kelas || [];
+        STATE.siswa = data.siswa || [];
+        STATE.logs = data.logs || [];
+        refreshUI();
+      } catch (e) {
+        console.error(e);
+        alert("Gagal memuat data dari cloud.");
+      } finally {
+        showLoading(false);
+      }
+    }
+
+    async function saveDataToCloud() {
+        showLoading(true);
+        try {
+            // Kita simpan masing-masing sheet
+            const sheets = ['users', 'kelas', 'siswa', 'logs'];
+            for (let s of sheets) {
+                let dataToSave = s === 'kelas' ? STATE.kelas.map(k => ({nama: k})) : STATE[s];
+                await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        action: 'sync',
+                        sheet: s,
+                        data: dataToSave
+                    })
+                });
+            }
+            alert("Data berhasil disinkronkan ke Google Sheets!");
+        } catch (e) {
+            alert("Gagal menyimpan data.");
+        } finally {
+            showLoading(false);
+        }
+    }
+
+    function showLoading(s) { document.getElementById('loadingOverlay').classList.toggle('hidden', !s); }
+
+    function handleLogin() {
+      const u = document.getElementById('username').value;
+      const p = document.getElementById('password').value;
+      const found = STATE.users.find(x => x.user === u && x.pass === p);
+      if(found) {
+        currentUser = found;
+        document.getElementById('loginPage').classList.add('hidden');
+        document.getElementById('mainApp').classList.remove('hidden');
+        document.getElementById('navInfo').innerText = `${currentUser.nama} (${currentUser.role})`;
+        if(currentUser.role === 'Admin') document.getElementById('adminBadge').classList.remove('hidden');
+        refreshUI();
+      } else alert("Username atau password salah!");
+    }
+
+    // --- REFRESH UI ---
+    function refreshUI() {
+      const sortedSiswa = [...STATE.siswa].sort((a,b) => b.poin - a.poin);
+      document.getElementById('siswaTableBody').innerHTML = sortedSiswa.map(s => `
+        <tr><td class="py-3 font-bold">${s.nama}</td><td class="py-3 text-slate-500 italic">${s.kelas}</td><td class="py-3 text-center font-black ${s.poin < 0 ? 'text-red-500':'text-emerald-600'}">${s.poin}</td></tr>
+      `).join('');
+
+      document.getElementById('recentLogs').innerHTML = STATE.logs.map(l => `
+        <div class="bg-white/5 p-3 rounded-xl border-l-4 border-blue-500">
+          <p class="text-[10px] text-slate-500">${l.waktu}</p>
+          <p class="text-xs font-bold">${l.siswa} - ${l.kelas}</p>
+          <p class="text-xs">${l.kegiatan} (${l.poin})</p>
+        </div>
+      `).reverse().slice(0, 10).join('');
+
+      renderGridKelas();
+      document.getElementById('selSiswa').innerHTML = STATE.siswa.map(s => `<option value="${s.id}">${s.nama} (${s.kelas})</option>`).join('');
+      document.getElementById('selKriteria').innerHTML = STATE.kriteria.map(k => `<option value="${k.id}">${k.nama} (${k.poin})</option>`).join('');
+    }
+
+    // --- CRUD KELAS ---
+    function renderGridKelas() {
+      document.getElementById('gridKelas').innerHTML = STATE.kelas.map(k => `
+        <div class="kelas-card bg-white p-4 rounded-2xl border shadow-sm cursor-pointer flex flex-col items-center justify-center text-center relative group" onclick="openDetailKelas('${k}')">
+          <span class="text-2xl font-black text-slate-800">${k}</span>
+          <span class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">${STATE.siswa.filter(s => s.kelas === k).length} Murid</span>
+          <div class="absolute top-2 right-2 flex gap-1 z-10">
+            <button onclick="event.stopPropagation(); editKelasPrompt('${k}')" class="bg-amber-100 text-amber-600 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">✏️</button>
+            <button onclick="event.stopPropagation(); deleteKelas('${k}')" class="bg-red-100 text-red-600 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">🗑️</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function addKelas() {
+      const val = document.getElementById('newKelasInput').value.trim().toUpperCase();
+      if(val && !STATE.kelas.includes(val)) {
+        STATE.kelas.push(val);
+        document.getElementById('newKelasInput').value = '';
+        refreshUI();
+      }
+    }
+
+    function editKelasPrompt(old) {
+        let n = prompt("Nama kelas baru:", old);
+        if(n && n.toUpperCase() !== old) {
+            const upper = n.toUpperCase();
+            STATE.kelas = STATE.kelas.map(k => k === old ? upper : k);
+            STATE.siswa = STATE.siswa.map(s => { if(s.kelas === old) s.kelas = upper; return s; });
+            STATE.users = STATE.users.map(u => { if(u.kelas === old) u.role === 'Wali Kelas' ? u.kelas = upper : null; return u; });
+            refreshUI();
+        }
+    }
+
+    function deleteKelas(k) {
+        if(confirm("Hapus kelas?")) {
+            STATE.kelas = STATE.kelas.filter(x => x !== k);
+            STATE.siswa = STATE.siswa.filter(s => s.kelas !== k);
+            refreshUI();
+        }
+    }
+
+    function openDetailKelas(k) {
+      selectedKelas = k;
+      document.getElementById('detailKelasTitle').innerText = `Kelas ${k}`;
+      document.getElementById('panelDetailKelas').classList.remove('hidden');
+      renderDetailKelasData();
+    }
+
+    function closeDetailKelas() {
+      selectedKelas = null;
+      document.getElementById('panelDetailKelas').classList.add('hidden');
+    }
+
+    function renderDetailKelasData() {
+      const murid = STATE.siswa.filter(s => s.kelas === selectedKelas);
+      document.getElementById('muridKelasTable').innerHTML = murid.map(s => `
+        <tr><td class="p-2">${s.nama}</td><td class="p-2 text-right text-red-400" onclick="deleteSiswa('${s.id}')">Hapus</td></tr>
+      `).join('');
+      // Logika Wali Kelas di sini...
+    }
+
+    function importMuridKeKelas() {
+      const raw = document.getElementById('csvMuridImport').value.trim();
+      if(!raw) return;
+      raw.split('\n').forEach(line => {
+        const p = line.split(',');
+        STATE.siswa.push({ id: "s"+Date.now()+Math.random(), nama: p[0].trim(), nisn: p[1]||"0", kelas: selectedKelas, poin: 0 });
+      });
+      document.getElementById('csvMuridImport').value = '';
+      renderDetailKelasData(); refreshUI();
+    }
+
+    function deleteSiswa(id) {
+        STATE.siswa = STATE.siswa.filter(s => s.id !== id);
+        renderDetailKelasData(); refreshUI();
+    }
+
+    function submitPoin() {
+      const sId = document.getElementById('selSiswa').value;
+      const kId = document.getElementById('selKriteria').value;
+      const s = STATE.siswa.find(x => x.id === sId);
+      const k = STATE.kriteria.find(x => x.id === kId);
+      if(s && k) {
+        s.poin = parseInt(s.poin) + parseInt(k.poin);
+        STATE.logs.push({ id: "l"+Date.now(), waktu: new Date().toLocaleString(), siswa: s.nama, kelas: s.kelas, kegiatan: k.nama, poin: k.poin, petugas: currentUser.nama });
+        toggleInputModal(); refreshUI();
+      }
+    }
+
+    function toggleAdminModal() { document.getElementById('adminModal').classList.toggle('hidden'); }
+    function toggleInputModal() { document.getElementById('inputModal').classList.toggle('hidden'); }
+    function switchAdminTab(t) {
+      document.getElementById('sectionKriteria').classList.toggle('hidden', t !== 'kriteria');
+      document.getElementById('sectionData').classList.toggle('hidden', t !== 'data');
+      document.getElementById('sectionLogs').classList.toggle('hidden', t !== 'logs');
+    }
+  </script>
+</body>
+</html>
